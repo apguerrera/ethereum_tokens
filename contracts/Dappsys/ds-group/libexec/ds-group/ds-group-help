@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+name=${0##*/} name=${name%-help} file=${0%/*}/$name${1+-$1}
+header=$(perl -ne 'print "$2\n" if /^(\S)\1\1(?: (.*))?/' "$file")
+
+if ! [[ $header ]]; then
+  sed "s/^/${0##*/}: /" "$file"
+elif [[ $(wc -l <<<"$header") = 1 ]]; then
+  echo "$header"
+else
+  sed 1d <<<"$header"
+fi
+
+if ! [[ $1 ]]; then
+  for file in ${0%/*}/$name-*; do
+    if [[ -L $file ]]; then
+      continue
+    else
+      commands+=("$file")
+    fi
+  done
+
+  list-commands() {
+    cat "$@" |
+    perl -ne 'print "$2 $3\n" if /^(\S)\1\1 '"$name"'-(\S+) -- (.*)/' |
+    while read -r name label; do
+      printf "   %-12s  %s\n" "$name" "$label"
+    done | LANG=C sort
+  }
+
+  cat <<.
+
+Commands:
+
+$(list-commands "${commands[@]}")
+
+Report bugs at <https://github.com/dapphub/ds-group/issues>.
+.
+fi
