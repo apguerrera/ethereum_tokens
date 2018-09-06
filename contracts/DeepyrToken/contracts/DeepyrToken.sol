@@ -1,5 +1,20 @@
 pragma solidity ^0.4.24;
 
+// ----------------------------------------------------------------------------
+// 'DEEPYR' token contract
+//
+// Symbol      : DEEPYR
+// Name        : Deepyr Token
+// Total supply: 10,000,000.000000000000000000
+// Decimals    : 18
+//
+// Enjoy.
+//
+// (c) Adrian Guerrera / Deepyr Pty Ltd 2018. The MIT Licence.
+// (c) BokkyPooBah / Bok Consulting Pty Ltd 2018. The MIT Licence.
+// ----------------------------------------------------------------------------
+
+
 
 // ----------------------------------------------------------------------------
 // Safe maths
@@ -56,18 +71,15 @@ contract ApproveAndCallFallBack {
 contract Owned {
     address public owner;
     address public newOwner;
-
     event OwnershipTransferred(address indexed _from, address indexed _to);
 
     constructor() public {
         owner = msg.sender;
     }
-
     modifier onlyOwner {
         require(msg.sender == owner);
         _;
     }
-
     function transferOwnership(address _newOwner) public onlyOwner {
         newOwner = _newOwner;
     }
@@ -79,20 +91,43 @@ contract Owned {
     }
 }
 
+// ----------------------------------------------------------------------------
+// Implementation of the basic standard token.
+// https://github.com/ethereum/EIPs/blob/master/EIPS/eip-20.md
+// Originally based on code by FirstBlood: https://github.com/Firstbloodio/token/blob/master/smart_contract/FirstBloodToken.sol
+// ----------------------------------------------------------------------------
 
-/**
- * @title Standard ERC20 token
- *
- * @dev Implementation of the basic standard token.
- * https://github.com/ethereum/EIPs/blob/master/EIPS/eip-20.md
- * Originally based on code by FirstBlood: https://github.com/Firstbloodio/token/blob/master/smart_contract/FirstBloodToken.sol
- */
 contract ERC20 is IERC20, Owned {
   using SafeMath for uint256;
 
+  event Mint(address indexed to, uint256 amount);
+  event MintStarted();
+  event MintFinished();
+
+  string public name;
+  string public symbol;
+  uint8 public decimals;
   mapping (address => uint256) private balances_;
   mapping (address => mapping (address => uint256)) private allowed_;
   uint256 private totalSupply_;
+  bool public mintingFinished = false;
+
+  // ------------------------------------------------------------------------
+  // Constructor
+  // ------------------------------------------------------------------------
+  constructor() public {
+    name = "Deepyr Token";
+    symbol = "DEEPYR";
+    decimals = 18;
+    _totalSupply = 10000000 * 10**uint(decimals);
+    balances[owner] = _totalSupply;
+    emit Transfer(address(0), owner, _totalSupply);
+  }
+
+  modifier canMint() {
+    require(!mintingFinished);
+    _;
+  }
 
   function totalSupply() public view returns (uint256) {
     return totalSupply_;
@@ -106,11 +141,6 @@ contract ERC20 is IERC20, Owned {
     return allowed_[_owner][_spender];
   }
 
-  /**
-  * @dev Transfer token for a specified address
-  * @param _to The address to transfer to.
-  * @param _value The amount to be transferred.
-  */
   function transfer(address _to, uint256 _value) public returns (bool) {
     require(_value <= balances_[msg.sender]);
     require(_to != address(0));
@@ -121,27 +151,12 @@ contract ERC20 is IERC20, Owned {
     return true;
   }
 
-  /**
-   * @dev Approve the passed address to spend the specified amount of tokens on behalf of msg.sender.
-   * Beware that changing an allowance with this method brings the risk that someone may use both the old
-   * and the new allowance by unfortunate transaction ordering. One possible solution to mitigate this
-   * race condition is to first reduce the spender's allowance to 0 and set the desired value afterwards:
-   * https://github.com/ethereum/EIPs/issues/20#issuecomment-263524729
-   * @param _spender The address which will spend the funds.
-   * @param _value The amount of tokens to be spent.
-   */
   function approve(address _spender, uint256 _value) public returns (bool) {
     allowed_[msg.sender][_spender] = _value;
     emit Approval(msg.sender, _spender, _value);
     return true;
   }
 
-  /**
-   * @dev Transfer tokens from one address to another
-   * @param _from address The address which you want to send tokens from
-   * @param _to address The address which you want to transfer to
-   * @param _value uint256 the amount of tokens to be transferred
-   */
   function transferFrom(  address _from,  address _to,uint256 _value )  public  returns (bool) {
     require(_value <= balances_[_from]);
     require(_value <= allowed_[_from][msg.sender]);
@@ -160,38 +175,14 @@ contract ERC20 is IERC20, Owned {
    * allowed value is better to use this function to avoid 2 calls (and wait until
    * the first transaction is mined)
    * From MonolithDAO Token.sol
-   * @param _spender The address which will spend the funds.
-   * @param _addedValue The amount of tokens to increase the allowance by.
    */
-  function increaseApproval(
-    address _spender,
-    uint256 _addedValue
-  )
-    public
-    returns (bool)
-  {
-    allowed_[msg.sender][_spender] = (
-      allowed_[msg.sender][_spender].add(_addedValue));
+  function increaseApproval(address _spender, uint256 _addedValue) public returns (bool) {
+    allowed_[msg.sender][_spender] = (allowed_[msg.sender][_spender].add(_addedValue));
     emit Approval(msg.sender, _spender, allowed_[msg.sender][_spender]);
     return true;
   }
 
-  /**
-   * @dev Decrease the amount of tokens that an owner allowed to a spender.
-   * approve should be called when allowed_[_spender] == 0. To decrement
-   * allowed value is better to use this function to avoid 2 calls (and wait until
-   * the first transaction is mined)
-   * From MonolithDAO Token.sol
-   * @param _spender The address which will spend the funds.
-   * @param _subtractedValue The amount of tokens to decrease the allowance by.
-   */
-  function decreaseApproval(
-    address _spender,
-    uint256 _subtractedValue
-  )
-    public
-    returns (bool)
-  {
+  function decreaseApproval(address _spender, uint256 _subtractedValue) public returns (bool) {
     uint256 oldValue = allowed_[msg.sender][_spender];
     if (_subtractedValue >= oldValue) {
       allowed_[msg.sender][_spender] = 0;
@@ -202,13 +193,9 @@ contract ERC20 is IERC20, Owned {
     return true;
   }
 
-  /**
-   * @dev Internal function that mints an amount of the token and assigns it to
-   * an account. This encapsulates the modification of balances such that the
-   * proper events are emitted.
-   * @param _account The account that will receive the created tokens.
-   * @param _amount The amount that will be created.
-   */
+  // ------------------------------------------------------------------------
+  // Mint & Burn functions, both interrnal and external
+  // ------------------------------------------------------------------------
   function _mint(address _account, uint256 _amount) internal {
     require(_account != 0);
     totalSupply_ = totalSupply_.add(_amount);
@@ -216,12 +203,6 @@ contract ERC20 is IERC20, Owned {
     emit Transfer(address(0), _account, _amount);
   }
 
-  /**
-   * @dev Internal function that burns an amount of the token of a given
-   * account.
-   * @param _account The account whose tokens will be burnt.
-   * @param _amount The amount that will be burnt.
-   */
   function _burn(address _account, uint256 _amount) internal {
     require(_account != 0);
     require(_amount <= balances_[_account]);
@@ -231,20 +212,53 @@ contract ERC20 is IERC20, Owned {
     emit Transfer(_account, address(0), _amount);
   }
 
-  /**
-   * @dev Internal function that burns an amount of the token of a given
-   * account, deducting from the sender's allowance for said account. Uses the
-   * internal _burn function.
-   * @param _account The account whose tokens will be burnt.
-   * @param _amount The amount that will be burnt.
-   */
   function _burnFrom(address _account, uint256 _amount) internal {
     require(_amount <= allowed_[_account][msg.sender]);
-
-    // Should https://github.com/OpenZeppelin/zeppelin-solidity/issues/707 be accepted,
-    // this function needs to emit an event with the updated approval.
-    allowed_[_account][msg.sender] = allowed_[_account][msg.sender].sub(
-      _amount);
+    allowed_[_account][msg.sender] = allowed_[_account][msg.sender].sub(_amount);
     _burn(_account, _amount);
+  }
+
+  function mint(address _to, uint256 _amount) public onlyOwner canMint returns (bool) {
+    _mint(_to, _amount);
+    emit Mint(_to, _amount);
+    return true;
+  }
+
+  function burn(uint256 _value)  public {
+    _burn(msg.sender, _value);
+  }
+
+  function burnFrom(address _from, uint256 _value) public {
+    _burnFrom(_from, _value);
+  }
+
+  /**
+   * @dev Function to start and stop minting new tokens.
+   * @return True if the operation was successful.
+   */
+   function startMinting() public onlyOwner returns (bool) {
+     mintingFinished = false;
+     emit MintStarted();
+     return true;
+   }
+
+  function finishMinting() public onlyOwner canMint returns (bool) {
+    mintingFinished = true;
+    emit MintFinished();
+    return true;
+  }
+
+  // ------------------------------------------------------------------------
+  // Don't accept ETH
+  // ------------------------------------------------------------------------
+  function () public payable {
+      revert();
+  }
+
+  // ------------------------------------------------------------------------
+  // Owner can transfer out any accidentally sent ERC20 tokens
+  // ------------------------------------------------------------------------
+  function transferAnyERC20Token(address tokenAddress, uint tokens) public onlyOwner returns (bool success) {
+      return ERC20Interface(tokenAddress).transfer(owner, tokens);
   }
 }
