@@ -327,16 +327,16 @@ contract ERC777Token is ERC20Token, IERC777 {
     mapping(address => mapping(address => bool)) internal _revokedDefaultOperator;
 
     // constructor (string symbol, string name, uint8 decimals, address tokenOwner, uint initialSupply, uint granularity, address[] defaultOperators ) public {
-    constructor (string _symbol, string _name, uint _decimals, uint _granularity, uint _initialSupply ) public {
+    constructor (string symbol, string name, uint8 decimals, uint8 granularity, uint _initialSupply ) public {
 
         initOwned(msg.sender);
-        // _symbol = "symbol";
-        // _name = "name";
-        // _decimals = 18; // decimals;
-        // _granularity = 1; // granularity;
+        _symbol = symbol;
+        _name = name;
+        _decimals = decimals;
+        _granularity = granularity;
 
-        balances[msg.sender] = _initialSupply;  //initialSupply;
-        _totalSupply = _initialSupply; // initialSupply;
+        balances[msg.sender] = _initialSupply;
+        _totalSupply = _initialSupply;
         // emit Transfer(address(0), tokenOwner, _totalSupply);  // TO DO: Check how to implement tokenOwner
         emit Transfer(address(0), msg.sender, _totalSupply);
 
@@ -421,9 +421,6 @@ contract ERC777Token is ERC20Token, IERC777 {
  contract ERC1410Token {
     using SafeMath for uint;
 
-    IERC777 public token;
-
-
     bytes[] public tranches;
     mapping(bytes32 => address) trancheAddress;
 
@@ -439,19 +436,16 @@ contract ERC777Token is ERC20Token, IERC777 {
      }
 
      function balanceOfByTranche(bytes32 _tranche, address _tokenHolder) external view returns (uint) {
-          token = IERC777(trancheAddress[_tranche]);
-          return token.balanceOf(_tokenHolder);
+          return IERC777(trancheAddress[_tranche]).balanceOf(_tokenHolder);
      }
 
      function sendByTranche(bytes32 _tranche, address _to, uint _amount, bytes _data) external returns (bytes32) {
-          token = IERC777(trancheAddress[_tranche]);
-          token.send(_to, _amount, _data);
+          IERC777(trancheAddress[_tranche]).send(_to, _amount, _data);
           return _tranche;
      }
 
      function operatorSendByTranche(bytes32 _tranche, address _from, address _to, uint _amount, bytes _data, bytes _operatorData) external returns (bytes32) {
-          token = IERC777(trancheAddress[_tranche]);
-          token.operatorSend(_from,_to,_amount,_data,_operatorData);
+          IERC777(trancheAddress[_tranche]).operatorSend(_from,_to,_amount,_data,_operatorData);
           return _tranche;
      }
 
@@ -459,25 +453,21 @@ contract ERC777Token is ERC20Token, IERC777 {
           return holderTranches[_tokenHolder];
      }
      function defaultOperatorsByTranche(bytes32 _tranche) external view returns (address[]) {
-        token = IERC777(trancheAddress[_tranche]);
-        return token.defaultOperators();
+        return IERC777(trancheAddress[_tranche]).defaultOperators();
      }
 
      function authorizeOperatorByTranche(bytes32 _tranche, address _operator) external {
           require(_operator != msg.sender);
-          token = IERC777(trancheAddress[_tranche]);
-          token.authorizeOperator(_operator);
+          IERC777(trancheAddress[_tranche]).authorizeOperator(_operator);
      }
 
      function revokeOperatorByTranche(bytes32 _tranche, address _operator) external {
           require(_operator != msg.sender);
-          token = IERC777(trancheAddress[_tranche]);
-          token.revokeOperator(_operator);
+          IERC777(trancheAddress[_tranche]).revokeOperator(_operator);
      }
 
      function isOperatorForTranche(bytes32 _tranche, address _operator, address _tokenHolder) external view returns (bool) {
-           token = IERC777(trancheAddress[_tranche]);
-           return token.isOperatorFor(_operator, _tokenHolder);
+           return IERC777(trancheAddress[_tranche]).isOperatorFor(_operator, _tokenHolder);
      }
 
 //------------ To Do List -----------------------------
@@ -495,7 +485,7 @@ contract ERC777Token is ERC20Token, IERC777 {
 }
 
 contract WhiteListInterface {
-    function isInWhiteList(address account) public view returns (bool);
+    function isInWhiteList(bytes32 tranche, address account) public view returns (bool);
 }
 
 // ----------------------------------------------------------------------------
@@ -503,35 +493,36 @@ contract WhiteListInterface {
 // - BokkyPooBah
 // ----------------------------------------------------------------------------
 contract WhiteList is WhiteListInterface, Operated {
-    mapping(address => bool) public whiteList;
 
-    event AccountListed(address indexed account, bool status);
+    mapping(bytes32 => mapping(address => bool)) whiteList;
+
+    event AccountListed(bytes32 indexed tranche, address indexed account, bool status);
 
     constructor() public {
         initOperated(msg.sender);
     }
 
-    function isInWhiteList(address account) public view returns (bool) {
-        return whiteList[account];
+    function isInWhiteList(bytes32 tranche, address account) public view returns (bool) {
+        return whiteList[tranche][account];
     }
 
-    function add(address[] accounts) public onlyOperator {
+    function add(bytes32 tranche, address[] accounts) public onlyOperator {
         require(accounts.length != 0);
         for (uint i = 0; i < accounts.length; i++) {
             require(accounts[i] != address(0));
-            if (!whiteList[accounts[i]]) {
-                whiteList[accounts[i]] = true;
-                emit AccountListed(accounts[i], true);
+            if (!whiteList[tranche][accounts[i]]) {
+                whiteList[tranche][accounts[i]] = true;
+                emit AccountListed(tranche, accounts[i], true);
             }
         }
     }
-    function remove(address[] accounts) public onlyOperator {
+    function remove(bytes32 tranche, address[] accounts) public onlyOperator {
         require(accounts.length != 0);
         for (uint i = 0; i < accounts.length; i++) {
             require(accounts[i] != address(0));
-            if (whiteList[accounts[i]]) {
-                delete whiteList[accounts[i]];
-                emit AccountListed(accounts[i], false);
+            if (whiteList[tranche][accounts[i]]) {
+                delete whiteList[tranche][accounts[i]];
+                emit AccountListed(tranche, accounts[i], false);
             }
         }
     }
@@ -582,7 +573,7 @@ contract DeepyrSecurityToken is Owned, ERC1410Token {
        whiteList = WhiteListInterface(_whiteList);
        // add to totalSupplyHistory { block.number, baseToken.totalSupply(); }
      }
-    /* fucntions overloaded, please investigate which to keep
+    /* functions overloaded, please investigate which to keep
      function symbol() public view returns (string _symbol) {
          _symbol = baseToken.symbol();
      }
@@ -598,7 +589,6 @@ contract DeepyrSecurityToken is Owned, ERC1410Token {
     function setDocument(bytes32 _name, string _uri, bytes32 _documentHash) external {
       documents[_name] = Document(_uri, _documentHash);
     }
-
 
 
     function totalSupply() public constant returns (uint) {
@@ -638,14 +628,22 @@ contract DeepyrSecurityToken is Owned, ERC1410Token {
       success = true;
     }
 
+    // conversion should be from an internal function which calls a mint and burn on the 777 tokens and a custom event
+    // conversion could also act like a proxy that opperates on the data
     function convertTranche(bytes32 from, bytes32 to, uint amount, bytes _userData) external {
-        require(trancheConversions[from][to] != address(0) || trancheAddress[from] != address(0) || trancheAddress[to] != address(0));
+        require(trancheConversions[from][to] != address(0) && trancheAddress[from] != address(0) && trancheAddress[to] != address(0) && amount > 0 );
         address convertAddress = trancheConversions[from][to];
         IERC777 fromToken = IERC777(trancheAddress[from]);
         IERC777 toToken = IERC777(trancheAddress[to]);
         // DeepyrSecurityTokenConverter.convertToken();
 
     }
+
+    function canSend(address _from, address _to, bytes32 _tranche, uint _amount, bytes _data) external view returns (byte, bytes32, bytes32) {
+        IERC777 token = IERC777(trancheAddress[_tranche]);
+    }
+
+
 
     // footer functions
     function transferAnyERC20Token(address tokenAddress, uint tokens) public onlyOwner returns (bool success) {
@@ -688,14 +686,14 @@ contract DeepyrSecurityTokenFactory is Owned {
       event SecurityTokenListing(address indexed securityAddress,address indexed tokenAddress, address whiteListAddress );
 
     // ------------------------------------------------------------------------
-    // Anyone can call this method to verify whether the bttsToken contract at
+    // Anyone can call this method to verify whether the securityToken contract at
     // the specified address was deployed using this factory
     //
     // Parameters:
     //   tokenContract  the security contract address
     //
     // Return values:
-    //   valid          did this SecurityTokenFactor create the SecurityToken contract?
+    //   valid          did this SecurityTokenFactory create the SecurityToken contract?
     //   decimals       number of decimal places for the token contract
     //   initialSupply  the token initial supply
     //   mintable       is the token mintable after deployment?
@@ -719,6 +717,10 @@ contract DeepyrSecurityTokenFactory is Owned {
         }
     }
 
+    function deploySecurity () {
+
+    }
+
     // not finished
     function deploySecurityToken (
           string tokenSymbol
@@ -733,8 +735,9 @@ contract DeepyrSecurityTokenFactory is Owned {
         token = new ERC777Token(tokenSymbol, tokenName, tokenDecimals, granularity,initialSupply );
         // need to fix this
         whitelist = new WhiteList();
-        _verify[address(token)] = true;
         securityToken = new DeepyrSecurityToken(token, whitelist);
+        _verify[address(securityToken)] = true;
+
         deployedTokens.push(DeepyrSecurityToken(securityToken));
 
         emit SecurityTokenListing(address(securityToken), address(token), address(whitelist));
