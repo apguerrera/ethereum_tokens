@@ -169,8 +169,8 @@ contract IERC777 is IERC20 {
 
 contract IERC1410  {
 
-    function getDefaultTranches(address _tokenHolder) external view returns (bytes32[]);
-    function setDefaultTranche(bytes32[] _tranches) external;
+    function getDefaultTranche(address _tokenHolder) external view returns (bytes32);
+    function setDefaultTranche(bytes32 _tranche) public;
     function balanceOfByTranche(bytes32 _tranche, address _tokenHolder) external view returns (uint);
     function sendByTranche(bytes32 _tranche, address _to, uint _amount, bytes _data) external returns (bytes32);
     // function sendByTranches(bytes32[] _tranches, address[] _tos, uint[] _amounts, bytes _data) external returns (bytes32[]);
@@ -319,7 +319,7 @@ contract ERC20Token is IERC20,  Owned {
 contract ERC777Token is ERC20Token, IERC777 {
     using SafeMath for uint;
 
-    uint _granularity;
+    uint8 _granularity;
 
     address[] internal _defaultOperators;
     mapping(address => mapping(address => bool)) _authorized;
@@ -338,7 +338,7 @@ contract ERC777Token is ERC20Token, IERC777 {
         balances[msg.sender] = _initialSupply;
         _totalSupply = _initialSupply;
         // emit Transfer(address(0), tokenOwner, _totalSupply);  // TO DO: Check how to implement tokenOwner
-        emit Transfer(address(0), msg.sender, _totalSupply);
+        emit Transfer(address(0), msg.sender, _initialSupply);
 
         require(_granularity >= 0);
 
@@ -418,21 +418,21 @@ contract ERC777Token is ERC20Token, IERC777 {
  // ERC777 = ERC20 + operator functions + granularity
  //
  // -------------------------------------------------------------------------
- contract ERC1410Token {
+ contract ERC1410Token is IERC1410 {
     using SafeMath for uint;
 
     bytes[] public tranches;
-    mapping(bytes32 => address) trancheAddress;
+    mapping(bytes32 => address) public trancheAddress;
 
-    mapping(address => bytes32[]) defaultTranches;
+    mapping(address => bytes32) defaultTranche;
     mapping(address => bytes32[]) holderTranches;
 
-     function getDefaultTranches(address _tokenHolder) external view returns (bytes32[]) {
-          return defaultTranches[_tokenHolder];
+     function getDefaultTranche(address _tokenHolder) external view returns (bytes32) {
+          return defaultTranche[_tokenHolder];
      }
 
-     function setDefaultTranche(bytes32[] _tranches) external {
-          defaultTranches[msg.sender] = _tranches;
+     function setDefaultTranche(bytes32 _tranche) public {
+          defaultTranche[msg.sender] = _tranche;
      }
 
      function balanceOfByTranche(bytes32 _tranche, address _tokenHolder) external view returns (uint) {
@@ -571,6 +571,10 @@ contract DeepyrSecurityToken is Owned, ERC1410Token {
        initOwned(msg.sender);
        baseToken = IERC777(_baseToken);
        whiteList = WhiteListInterface(_whiteList);
+       (bytes32 tranche, bool success) = addTranche(baseToken);
+       if (success) {
+         setDefaultTranche(tranche);
+       }
        // add to totalSupplyHistory { block.number, baseToken.totalSupply(); }
      }
     /* functions overloaded, please investigate which to keep
@@ -622,11 +626,23 @@ contract DeepyrSecurityToken is Owned, ERC1410Token {
     }
 
 
-    function addTranche(address _token) external returns (bytes32 tranche, bool success) {
+    function addTranche(address _token) public returns (bytes32 tranche, bool success) {
       tranche = keccak256(_token);
       trancheAddress[tranche] = _token;
       success = true;
     }
+
+    /*
+    // not working with token creation :(
+    function addNewTranche(string tokenSymbol, string tokenName, uint8  tokenDecimals, uint8 granularity, uint initialSupply ) public  returns ( bool success)  {
+        // address _token = new ERC777Token(tokenSymbol, tokenName, tokenDecimals, granularity, initialSupply);
+        // address _token = new ERC777Token("TEST", "Test Token", 18, 1, 2000000);
+
+        // bytes32 tranche = keccak256(_token);
+        // trancheAddress[tranche] = _token;
+        success = true;
+      }
+    */
 
     // conversion should be from an internal function which calls a mint and burn on the 777 tokens and a custom event
     // conversion could also act like a proxy that opperates on the data
@@ -717,9 +733,6 @@ contract DeepyrSecurityTokenFactory is Owned {
         }
     }
 
-    function deploySecurity () {
-
-    }
 
     // not finished
     function deploySecurityToken (
