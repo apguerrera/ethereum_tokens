@@ -102,9 +102,10 @@ contract Operated is Owned {
 }
 
 
-
-/// @title IERCST Security Token Standard (EIP 1400)
-/// @dev See https://github.com/SecurityTokenStandard/EIP-Spec
+//-----------------------------------------------------------------------------
+// @title IERCST Security Token Standard (EIP 1400)
+// @dev See https://github.com/SecurityTokenStandard/EIP-Spec
+//-----------------------------------------------------------------------------
 
 contract CanSendCodes {
     byte constant TRANSFER_VERIFIED_UNRESTRICTED = 0xA0;                // Transfer Verified - Unrestricted
@@ -118,9 +119,6 @@ contract CanSendCodes {
     byte constant TRANSFER_BLOCKED_TOKEN_RESTRICTION = 0xA8;            // Transfer Blocked - Token restriction
     byte constant TRANSFER_BLOCKED_TOKEN_GRANULARITY = 0xA9;            // Transfer Blocked - Token granularity
 }
-
-//  @title ERC-1410 Partially Fungible Token Standard
-//  @dev See https://github.com/SecurityTokenStandard/EIP-Spec
 
 contract IERC20 {
     event Transfer(address indexed from, address indexed to, uint tokens);
@@ -139,23 +137,22 @@ contract IERC20 {
 
 }
 
+//-----------------------------------------------------------------------------
 // @dev See [ethereum/eips/issues#777](https://github.com/ethereum/eips/issues/777)
 // Jordi Baylina [@jbaylina](https://github.com/jbaylina)
 // Jacques Dafflon [@jacquesd](https://github.com/jacquesd)
 // Thomas Shababi
+//-----------------------------------------------------------------------------
 
 contract IERC777 is IERC20 {
 
     function granularity() external view returns (uint);
-
     function defaultOperators() external view returns (address[]);
     function authorizeOperator(address operator) external;
     function revokeOperator(address operator) external;
     function isOperatorFor(address operator, address tokenHolder) external view returns (bool);
-
     function send(address to, uint amount, bytes data) external;
     function operatorSend(address from, address to, uint amount, bytes data, bytes operatorData) external;
-
     function burn(uint amount, bytes data) public;
     function operatorBurn(address from, uint256 amount, bytes data, bytes operatorData) public;
     function operatorMint(address _tokenHolder, uint256 _amount, bytes _holderData, bytes _operatorData) public;
@@ -215,7 +212,6 @@ contract IERCST {
 
 // ----------------------------------------------------------------------------
 // Contract function to receive approval and execute function in one call
-//
 // Borrowed from MiniMeToken
 // ----------------------------------------------------------------------------
 contract ApproveAndCallFallBack {
@@ -225,7 +221,6 @@ contract ApproveAndCallFallBack {
 
 // ----------------------------------------------------------------------------
 // MintableToken = ERC20 + symbol + name + decimals + mint + burn
-//
 // NOTE: This token contract allows the owner to mint and burn tokens for any
 // account, and is used for testing
 // ----------------------------------------------------------------------------
@@ -313,10 +308,10 @@ contract ERC20Token is IERC20,  Owned {
     }
 }
 
-//--------------------------------------------------------------------------
+//-----------------------------------------------------------------------------
 // ERC777 = ERC20 + operator functions + granularity
-//
-// -------------------------------------------------------------------------
+// ----------------------------------------------------------------------------
+
 contract ERC777Token is ERC20Token, IERC777 {
     using SafeMath for uint;
 
@@ -348,7 +343,6 @@ contract ERC777Token is ERC20Token, IERC777 {
 
         // setInterfaceImplementation("ERC777Token", this);
     }
-
 
      function granularity() external constant returns (uint) { return _granularity; }
 
@@ -457,8 +451,8 @@ contract ERC777Token is ERC20Token, IERC777 {
 }
  //--------------------------------------------------------------------------
  // ERC777 = ERC20 + operator functions + granularity
- //
  // -------------------------------------------------------------------------
+
  contract ERC1410Token is IERC1410 {
     using SafeMath for uint;
 
@@ -545,9 +539,10 @@ contract WhiteListInterface {
 }
 
 // ----------------------------------------------------------------------------
-// Bonus List - on list or not
+// White List - on list or not
 // - BokkyPooBah
 // ----------------------------------------------------------------------------
+
 contract WhiteList is WhiteListInterface, Operated {
 
     mapping(bytes32 => mapping(address => bool)) whiteList;
@@ -582,17 +577,15 @@ contract WhiteList is WhiteListInterface, Operated {
     }
 }
 
-
-
+//-----------------------------------------------------------------------------
 // Security token conversion contract
+//-----------------------------------------------------------------------------
 
 contract ISTCONV {
     function canConvert (address _whitelist, bytes32 _tranche, address _account, uint _amount) public view returns (bool success);
     function convertToken (address _account, IERC777 _from, IERC777 _to, uint _amount, bytes _holderData, bytes _operatorData) public returns (bool success);
 }
 
-
-// work in progress
 contract DeepyrSecurityTokenConverter is ISTCONV {
 
     function canConvert (address _whitelist, bytes32 _tranche, address _account, uint _amount) public view returns (bool success) {
@@ -601,9 +594,7 @@ contract DeepyrSecurityTokenConverter is ISTCONV {
         require(_amount!=0); // replace with amount check logic
         WhiteListInterface whitelist = WhiteListInterface(_whitelist);
         whitelist.isInWhiteList(_tranche, _account);
-
         return true;
-
     }
 
     // needs to have this contract as the operator of the 777 tokens
@@ -655,14 +646,13 @@ contract DeepyrSecurityToken is Owned, ERC1410Token {
        }
        // add to totalSupplyHistory { block.number, baseToken.totalSupply(); }
      }
-    /* functions overloaded, please investigate which to keep
+
      function symbol() public view returns (string _symbol) {
          _symbol = baseToken.symbol();
      }
      function name() public view returns (string _name) {
          _name = baseToken.name();
      }
-     */
 
     function getDocument(bytes32 _name) external view returns (string _uri, bytes32 _documentHash) {
           Document memory document = documents[_name];
@@ -709,17 +699,14 @@ contract DeepyrSecurityToken is Owned, ERC1410Token {
         require(trancheConversions[_from][_to] != address(0) && trancheAddress[_from] != address(0) && trancheAddress[_to] != address(0) && _amount > 0 );
         //canSend();
         address convertAddress = trancheConversions[_from][_to];
-
         require(ISTCONV(convertAddress).canConvert(whiteList, _from, msg.sender, _amount));
         require(ISTCONV(convertAddress).canConvert(whiteList, _to, msg.sender, _amount));
-
 
         // load conversion contract and convert tokens
         ISTCONV(convertAddress).convertToken(msg.sender, IERC777(trancheAddress[_from]),IERC777(trancheAddress[_to]), _amount, _userData, "");
         emit TrancheConverted(_from, _to, msg.sender, _amount);
 
     }
-
 
     function canSend(address _from, address _to, bytes32 _tranche, uint _amount, bytes _data) external view returns (bytes, bytes32, bytes32) {
         require(_amount!=0); // replace with amount check logic
@@ -739,6 +726,20 @@ contract DeepyrSecurityToken is Owned, ERC1410Token {
         success = true;
     }
 
+    function addNewConversion () {
+
+    }
+    function deleteConversion() {
+
+    }
+    function issueByTranche(bytes32 _tranche, address _tokenHolder, uint _amount, bytes _data) external {
+
+    }
+    // If a token returns FALSE for isIssuable() then it MUST always return FALSE in the future.
+    // function issuable() external view returns (bool) {}
+
+    // function lockTokens();   // locking up tranch tokens for collateral
+
     // footer functions
     function transferAnyERC20Token(address tokenAddress, uint tokens) public onlyOwner returns (bool success) {
         return IERC20(tokenAddress).transfer(owner, tokens);
@@ -748,17 +749,6 @@ contract DeepyrSecurityToken is Owned, ERC1410Token {
         revert();
     }
 
-//------------ To Do List -----------------------------
-
-
-    // If a token returns FALSE for isIssuable() then it MUST always return FALSE in the future.
-    // function issuable() external view returns (bool);
-    // function issueByTranche(bytes32 _tranche, address _tokenHolder, uint _amount, bytes _data) external;
-
-//-------- Bonus list ---------------
-
-    // function lockTokens();   // locking up tranch tokens for collateral
-
 }
 
 
@@ -767,31 +757,11 @@ contract DeepyrSecurityToken is Owned, ERC1410Token {
 // creates security tokens from calling
 contract DeepyrSecurityTokenFactory is Owned {
 
-      // ------------------------------------------------------------------------
-      // Internal data
-      // ------------------------------------------------------------------------
-      DeepyrSecurityToken[] public deployedTokens;
-      mapping(address => bool) _verify;
+    DeepyrSecurityToken[] public deployedTokens;
+    mapping(address => bool) _verify;
 
-      // ------------------------------------------------------------------------
-      // Event
-      // ------------------------------------------------------------------------
-      event SecurityTokenListing(address indexed securityAddress,address indexed tokenAddress, address whiteListAddress );
+    event SecurityTokenListing(address indexed securityAddress,address indexed tokenAddress, address whiteListAddress );
 
-    // ------------------------------------------------------------------------
-    // Anyone can call this method to verify whether the securityToken contract at
-    // the specified address was deployed using this factory
-    //
-    // Parameters:
-    //   tokenContract  the security contract address
-    //
-    // Return values:
-    //   valid          did this SecurityTokenFactory create the SecurityToken contract?
-    //   decimals       number of decimal places for the token contract
-    //   initialSupply  the token initial supply
-    //   mintable       is the token mintable after deployment?
-    //   transferable   are the tokens transferable after deployment?
-    // ------------------------------------------------------------------------
     function verify(address tokenContract) public view returns (
         bool    valid,
         address owner
@@ -801,7 +771,6 @@ contract DeepyrSecurityTokenFactory is Owned {
     ) {
         valid = _verify[tokenContract];
         if (valid) {
-            //
             DeepyrSecurityToken t = DeepyrSecurityToken(tokenContract);
             owner        = t.owner();
             // decimals     = t.decimals();
@@ -810,21 +779,6 @@ contract DeepyrSecurityTokenFactory is Owned {
         }
     }
 
-    /*
-    // not finished
-    function deploySecurityToken (
-             address token,
-             address whitelist
-      ) public returns (address securityToken) {
-
-        securityToken = new DeepyrSecurityToken(address(token), address(whitelist));
-        _verify[address(securityToken)] = true;
-        deployedTokens.push(DeepyrSecurityToken(securityToken));
-
-        emit SecurityTokenListing(address(securityToken), address(token), address(whitelist));
-    }
-
-    */
     // not finished
     function deployNewSecurityToken (
           string tokenSymbol
@@ -838,12 +792,25 @@ contract DeepyrSecurityTokenFactory is Owned {
         token = new ERC777Token(tokenSymbol, tokenName, tokenDecimals, granularity,initialSupply );
         // need to fix this
         whitelist = new WhiteList();
-        //securityToken = new DeepyrSecurityToken(address(token), address(whitelist));
-        // _verify[address(securityToken)] = true;
+        securityToken = new DeepyrSecurityToken(address(token), address(whitelist));
+         _verify[address(securityToken)] = true;
 
-        // deployedTokens.push(DeepyrSecurityToken(securityToken));
+        deployedTokens.push(DeepyrSecurityToken(securityToken));
 
-        // emit SecurityTokenListing(address(securityToken), address(token), address(whitelist));
+        emit SecurityTokenListing(address(securityToken), address(token), address(whitelist));
+    }
+
+    // not finished
+    function deploySecurityToken (
+             address token,
+             address whitelist
+      ) public returns (address securityToken) {
+
+        securityToken = new DeepyrSecurityToken(address(token), address(whitelist));
+        _verify[address(securityToken)] = true;
+        deployedTokens.push(DeepyrSecurityToken(securityToken));
+
+        emit SecurityTokenListing(address(securityToken), address(token), address(whitelist));
     }
 
 
