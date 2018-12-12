@@ -604,9 +604,13 @@ contract DeepyrSecurityToken is Owned, ERC1410Token {
      mapping(bytes32 => Document ) documents;
      mapping(bytes32 => uint8 ) trancheLimits; // not implimented yet, to cap new issuances
      mapping (bytes32 => Checkpoint[]) trancheBalances;
+
+     // Mapping of two different tokens to a conversion contract address
      mapping(bytes32 => mapping(bytes32 => address)) trancheConversions; // address[] an array of conversions, or Conversion[]
 
      event TrancheConverted(bytes32 indexed fromTranche, bytes32 indexed toTranche, address indexed account, uint amount);
+
+     // To be finalised 
      constructor(address _baseToken, address _whiteList) public {
        require(_baseToken != address(0) && _whiteList != address(0));
        initOwned(msg.sender);
@@ -692,6 +696,7 @@ contract DeepyrSecurityToken is Owned, ERC1410Token {
 
         // load conversion contract and convert tokens
         ISTCONV(trancheConversions[_from][_to]).convertToken(msg.sender, IERC777(trancheAddress[_from]),IERC777(trancheAddress[_to]), _amount, _userData, "");
+        // check total supply for both tokens
         emit TrancheConverted(_from, _to, msg.sender, _amount);
     }
 
@@ -720,16 +725,13 @@ contract DeepyrSecurityToken is Owned, ERC1410Token {
       success = true;
     }
 
-    function getConversion (address _tokenAddress) public view returns (bytes32) {
-       for (uint i = 0; i < tranches.length; i++) {
-         if (trancheAddress[tranches[i]]==_tokenAddress) {
-             return tranches[i];
-         }
-       }
+    function getConversionAddress(bytes32 _from, bytes32 _to) public view returns (address) {
+        return trancheConversions[_from][_to];
     }
 
-    function deleteConversion(address _convertAddress) {
-
+    function deleteConversion(bytes32 _from, bytes32 _to) public onlyOwner returns (bool success) {
+        trancheConversions[_from][_to] = address(0);
+        success = true;
     }
     function issueByTranche(bytes32 _tranche, address _tokenHolder, uint _amount, bytes _data) external {
         // operatorMint(address _tokenHolder, uint256 _amount, bytes _holderData, bytes _operatorData)
