@@ -1,0 +1,29 @@
+{
+  "name": "@optionality.io/dividend-token",
+  "version": "0.1.0",
+  "description": "An ERC20 token implementation that supports dividends",
+  "main": "index.js",
+  "directories": {
+    "test": "test"
+  },
+  "dependencies": {
+    "snapshotable": "github:yarrumretep/snapshotable",
+    "zeppelin-solidity": "^1.6.0"
+  },
+  "devDependencies": {
+    "expect": "^22.2.0"
+  },
+  "scripts": {
+    "test": "truffle test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yarrumretep/dividend-token.git"
+  },
+  "author": "Peter M. Murray <pete@pmurray.com>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/yarrumretep/dividend-token/issues"
+  },
+  "homepage": "https://github.com/yarrumretep/dividend-token#readme"
+}

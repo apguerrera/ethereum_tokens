@@ -577,7 +577,7 @@ contract WhiteList is WhiteListInterface, Operated {
 
 
 // work in progress
-contract DeepyrSecurityToken is Owned, ERC1410Token {
+contract DeepyrsSecurityToken is Owned, ERC1410Token {
      using SafeMath for uint;
 
      uint private constant TENPOW18 = 10 ** 18;
@@ -610,7 +610,7 @@ contract DeepyrSecurityToken is Owned, ERC1410Token {
 
      event TrancheConverted(bytes32 indexed fromTranche, bytes32 indexed toTranche, address indexed account, uint amount);
 
-     // To be finalised 
+     // To be finalised
      constructor(address _baseToken, address _whiteList) public {
        require(_baseToken != address(0) && _whiteList != address(0));
        initOwned(msg.sender);
@@ -683,8 +683,8 @@ contract DeepyrSecurityToken is Owned, ERC1410Token {
 
     function canConvert(bytes32 _from, bytes32 _to, uint _amount) external {
       address convertAddress = trancheConversions[_from][_to];
-      require(ISTCONV(convertAddress).canConvert(whiteList, _from, msg.sender, _amount));
-      require(ISTCONV(convertAddress).canConvert(whiteList, _to, msg.sender, _amount));
+      require(IDSTCONV(convertAddress).canConvert(whiteList, _from, msg.sender, _amount));
+      require(IDSTCONV(convertAddress).canConvert(whiteList, _to, msg.sender, _amount));
       success = true;
     }
 
@@ -695,7 +695,7 @@ contract DeepyrSecurityToken is Owned, ERC1410Token {
         require(canConvert( _from, _to, _amount));
 
         // load conversion contract and convert tokens
-        ISTCONV(trancheConversions[_from][_to]).convertToken(msg.sender, IERC777(trancheAddress[_from]),IERC777(trancheAddress[_to]), _amount, _userData, "");
+        IDSTCONV(trancheConversions[_from][_to]).convertToken(msg.sender, IERC777(trancheAddress[_from]),IERC777(trancheAddress[_to]), _amount, _userData, "");
         // check total supply for both tokens
         emit TrancheConverted(_from, _to, msg.sender, _amount);
     }
@@ -720,7 +720,7 @@ contract DeepyrSecurityToken is Owned, ERC1410Token {
 
     function addNewConversion (bytes32 _from, bytes32 _to, address _convertAddress) returns (bool success) {
       require(_convertAddress != address(0) && trancheAddress[_from] != address(0) && trancheAddress[_to] != address(0));
-      // require(ISTCONV(_convertAddress));  // some sort of test that the conversion interface works for the input
+      // require(IDSTCONV(_convertAddress));  // some sort of test that the conversion interface works for the input
       trancheConversions[_from][_to] = _convertAddress
       success = true;
     }
@@ -758,12 +758,12 @@ contract DeepyrSecurityToken is Owned, ERC1410Token {
 // Example
 //-----------------------------------------------------------------------------
 
-contract ISTCONV {
+contract IDSTCONV {
     function canConvert (address _whitelist, bytes32 _tranche, address _account, uint _amount) public view returns (bool success);
     function convertToken (address _account, IERC777 _from, IERC777 _to, uint _amount, bytes _holderData, bytes _operatorData) public returns (bool success);
 }
 
-contract DeepyrSecurityTokenConverter is ISTCONV {
+contract DeepyrsSecurityTokenConverter is IDSTCONV {
     // Not finished
     function canConvert (address _whitelist, bytes32 _tranche, address _account, uint _amount) public view returns (bool success) {
         // check whitelist
@@ -792,9 +792,9 @@ contract DeepyrSecurityTokenConverter is ISTCONV {
 // creates security tokens from factory contract
 //-----------------------------------------------------------------------------
 
-contract DeepyrSecurityTokenFactory is Owned {
+contract DeepyrsSecurityTokenFactory is Owned {
 
-    DeepyrSecurityToken[] public deployedTokens;
+    DeepyrsSecurityToken[] public deployedTokens;
     mapping(address => bool) _verify;
 
     event SecurityTokenListing(address indexed securityAddress,address indexed tokenAddress, address whiteListAddress );
@@ -812,9 +812,9 @@ contract DeepyrSecurityTokenFactory is Owned {
         token = new ERC777Token(tokenSymbol, tokenName, tokenDecimals, granularity,initialSupply );
         // need to fix this
         whitelist = new WhiteList();
-        securityToken = new DeepyrSecurityToken(address(token), address(whitelist));
+        securityToken = new DeepyrsSecurityToken(address(token), address(whitelist));
          _verify[address(securityToken)] = true;
-        deployedTokens.push(DeepyrSecurityToken(securityToken));
+        deployedTokens.push(DeepyrsSecurityToken(securityToken));
         emit SecurityTokenListing(address(securityToken), address(token), address(whitelist));
     }
 
@@ -823,9 +823,9 @@ contract DeepyrSecurityTokenFactory is Owned {
              address token,
              address whitelist
       ) public returns (address securityToken) {
-        securityToken = new DeepyrSecurityToken(address(token), address(whitelist));
+        securityToken = new DeepyrsSecurityToken(address(token), address(whitelist));
         _verify[address(securityToken)] = true;
-        deployedTokens.push(DeepyrSecurityToken(securityToken));
+        deployedTokens.push(DeepyrsSecurityToken(securityToken));
         emit SecurityTokenListing(address(securityToken), address(token), address(whitelist));
     }
 
@@ -836,7 +836,7 @@ contract DeepyrSecurityTokenFactory is Owned {
     function verify(address tokenContract) public view returns (bool valid, address owner) {
         valid = _verify[tokenContract];
         if (valid) {
-            DeepyrSecurityToken t = DeepyrSecurityToken(tokenContract);
+            DeepyrsSecurityToken t = DeepyrsSecurityToken(tokenContract);
             owner        = t.owner();
             // decimals     = t.decimals();
         }
@@ -864,8 +864,8 @@ Workflow
 deploy
 ERC777Token
 Whitelist
-DeepyrSecurityTokenFactory (ERC777Token, Whitelist)
-DeepyrSecurityToken(address from logs)
+DeepyrsSecurityTokenFactory (ERC777Token, Whitelist)
+DeepyrsSecurityToken(address from logs)
 Add second tranche
 transfer 200 tokens
 convert 100 tokens
