@@ -65,7 +65,7 @@ interface IERC20 {
 // Borrowed from MiniMeToken
 // ----------------------------------------------------------------------------
 contract ApproveAndCallFallBack {
-    function receiveApproval(address from, uint256 tokens, address token, bytes data) public;
+    function receiveApproval(address from, uint256 tokens, address token, bytes memory data) public;
 }
 
 // ----------------------------------------------------------------------------
@@ -107,7 +107,7 @@ contract ERC20 is IERC20, Owned {
     uint256 constant POINTS_PER_WEI = 1e32;
 
     // ERC20 mintable
-    mapping (address => uint256) private balances_;
+    // mapping (address => uint256) private balances_;
     mapping (address => mapping (address => uint256)) private allowed_;
     string public name;
     string public symbol;
@@ -119,8 +119,8 @@ contract ERC20 is IERC20, Owned {
 
     // Dividends
     struct Account {
-        uint balance;
-        uint lastDividendPoints;
+        uint256 balance;
+        uint256 lastDividendPoints;
     }
     struct Dividend {
         ERC20 token;
@@ -129,10 +129,10 @@ contract ERC20 is IERC20, Owned {
 
     Dividend[] internal dividends;
     mapping(address=>Account) public accounts;
+
     uint256 public totalDividendPoints;
     uint256 public dividendsCollected;
     uint256 public dividendsTotal;
-    uint256 public ethDust;
 
     mapping (address => uint) public creditedPoints;
     mapping (address => uint) public lastPointsPerToken;
@@ -155,7 +155,7 @@ contract ERC20 is IERC20, Owned {
       symbol = "DEEPYR";
       decimals = 18;
       totalSupply_ = 10000000 * 10**uint(decimals);
-      balances_[owner] = totalSupply_;
+      accounts[owner].balance = totalSupply_;
       emit Transfer(address(0), owner, totalSupply_);
     }
 
@@ -172,7 +172,7 @@ contract ERC20 is IERC20, Owned {
     }
 
     function balanceOf(address _owner) public view returns (uint256) {
-      return balances_[_owner];
+      return accounts[_owner].balance;
     }
 
     function allowance(  address _owner,  address _spender )  public  view  returns (uint256) {
@@ -198,13 +198,13 @@ contract ERC20 is IERC20, Owned {
     }
 
     function _transferFrom(  address _from,  address _to,uint256 _value )  internal  returns (bool) {
-      require(_value <= balances_[_from]);
+      require(_value <= accounts[_from].balance);
       require(_value <= allowed_[_from][msg.sender]);
       require(_to != address(0));
       _updateCreditedPoints(_from);
       _updateCreditedPoints(_to);
-      balances_[_from] = balances_[_from].sub(_value);
-      balances_[_to] = balances_[_to].add(_value);
+      accounts[_from].balance = accounts[_from].balance.sub(_value);
+      accounts[_to].balance = accounts[_to].balance.add(_value);
       allowed_[_from][msg.sender] = allowed_[_from][msg.sender].sub(_value);
       emit Transfer(_from, _to, _value);
       return true;
@@ -238,20 +238,20 @@ contract ERC20 is IERC20, Owned {
     // Mint & Burn functions, both interrnal and external
     // ------------------------------------------------------------------------
     function _mint(address _account, uint256 _amount) internal {
-      require(_account != 0);
+      require(_account != address(0));
       _updateCreditedPoints(_account);
       totalSupply_ = totalSupply_.add(_amount);
-      balances_[_account] = balances_[_account].add(_amount);
+      accounts[_account].balance = accounts[_account].balance.add(_amount);
       emit Transfer(address(0), _account, _amount);
     }
 
     function _burn(address _account, uint256 _amount) internal {
-      require(_account != 0);
-      require(_amount <= balances_[_account]);
+      require(_account != address(0));
+      require(_amount <= accounts[_account].balance);
       _updateCreditedPoints(_account);
 
       totalSupply_ = totalSupply_.sub(_amount);
-      balances_[_account] = balances_[_account].sub(_amount);
+      accounts[_account].balance = accounts[_account].balance.sub(_amount);
       emit Transfer(_account, address(0), _amount);
     }
 
@@ -325,7 +325,7 @@ contract ERC20 is IERC20, Owned {
         creditedPoints[msg.sender] = 0;
         dividendsCollected += _amount;
         emit CollectedDividends(now, msg.sender, _amount);
-        require(msg.sender.call.value(_amount)());
+        require(msg.sender.call.value(_amount)(""));
     }
 
     // Credits _account with whatever dividend points they haven't yet been credited.
@@ -347,15 +347,11 @@ contract ERC20 is IERC20, Owned {
     }
 
     // Returns how many wei a call to .collectOwedDividends() would transfer.
-    function getOwedDividends(address _account) public constant returns (uint _amount) {
+    function getOwedDividends(address _account) public view returns (uint _amount) {
         return (_getUncreditedPoints(_account) + creditedPoints[_account])/POINTS_PER_WEI;
     }
 
-    function sweepDust() public onlyOwner {
-        uint amount = ethDust;
-        ethDust = 0;
-        require(transfer(msg.sender, amount));
-    }
+
 
     // ------------------------------------------------------------------------
     // Owner can transfer out any accidentally sent ERC20 tokens
@@ -364,14 +360,13 @@ contract ERC20 is IERC20, Owned {
       return IERC20(tokenAddress).transfer(owner, tokens);
     }
 
-    function () payable public {
+    function () payable external {
         if (msg.value == 0) return;
-        uint256 dust = msg.value % totalSupply();
-        uint256 amount = msg.value - dust;
-        ethDust += dust;
+        uint256 amount = msg.value;
+
         // POINTS_PER_WEI is 1e32.
         // So, no multiplication overflow unless msg.value > 1e45 wei (1e27 ETH)
-        totalDividendPoints += (amount * POINTS_PER_WEI) / totalSupply();
+        totalDividendPoints += (amount * POINTS_PER_WEI) / totalSupply_;
         dividendsTotal += amount;
         emit DividendReceived(now, msg.sender, amount);
     }
